@@ -15,9 +15,13 @@ ID_SLIDER = 11002
 #####################################################################
 class MainFrame(wx.Frame):
     def __init__(self, *args, **kwds):
-        # <test>
-        self._play, self._repeat = None, None
-        # </test>
+        self.state = {
+            "play": False,
+            "repeat": True,
+            "feed": None,
+            "playing": False,
+            "changed": False
+        }
 
         kwds["style"] = kwds.get("style", 0) | wx.DEFAULT_FRAME_STYLE
         wx.Frame.__init__(self, *args, **kwds)
@@ -59,11 +63,12 @@ class MainFrame(wx.Frame):
         self.play_button.SetBitmapDisabled(wx.Bitmap("icons\\play.disabled.png", wx.BITMAP_TYPE_ANY))
         self.repeat_button = wx.BitmapButton(self.panel, ID_REPEAT,
                                              wx.Bitmap("icons\\repeat.png", wx.BITMAP_TYPE_ANY))
-        self.slider_1 = wx.Slider(self.panel, ID_SLIDER, 0, 0, 10)
+        self.slider = wx.Slider(self.panel, ID_SLIDER, 0, 0, 10)
         # </panel>
 
         self.__set_properties()
         self.__do_layout()
+        self.__update()
 
         # Set events
         self.Bind(wx.EVT_TOOL, self.onToolbarClick, id=wx.ID_ANY)
@@ -71,10 +76,6 @@ class MainFrame(wx.Frame):
 
     def __set_properties(self):
         self.SetTitle(r"PyVideo")
-        self.toolbar.EnableTool(ID_SAVEAS, False)
-        self.toolbar.EnableTool(ID_UNDO, False)
-        self.toolbar.EnableTool(ID_REDO, False)
-        self.toolbar.EnableTool(ID_NEWEFFECT, False)
         self.toolbar.Realize()
         self.play_button.SetSize(self.play_button.GetBestSize())
         self.repeat_button.SetSize(self.repeat_button.GetBestSize())
@@ -87,11 +88,21 @@ class MainFrame(wx.Frame):
         sizer_1.Add(self.video_frame, 1, wx.EXPAND, 0)
         sizer_2.Add(self.play_button, 0, 0, 0)
         sizer_2.Add(self.repeat_button, 0, 0, 0)
-        sizer_2.Add(self.slider_1, 1, wx.EXPAND, 0)
+        sizer_2.Add(self.slider, 1, wx.EXPAND, 0)
         self.panel.SetSizer(sizer_2)
         sizer_1.Add(self.panel, 0, wx.EXPAND, 0)
         self.SetSizer(sizer_1)
         self.Layout()
+
+    def __update(self):
+        feed_on = self.state["feed"] is not None
+        changed = self.state["changed"]
+        self.toolbar.EnableTool(ID_SAVEAS, changed)
+        self.toolbar.EnableTool(ID_UNDO, changed)
+        self.toolbar.EnableTool(ID_REDO, False)
+        self.toolbar.EnableTool(ID_NEWEFFECT, feed_on)
+        self.play_button.Enable(feed_on)
+        self.slider.Enable(feed_on)
 
     def onToolbarClick(self, event):
         file_filters = "AVI (*.avi)|*.avi|All files (*.*)|*.*"
@@ -114,23 +125,14 @@ class MainFrame(wx.Frame):
             pass
 
     def onButtonClick(self, event):
-        # <test>
         if event.Id == ID_PLAY:
-            if self._play:
-                self.play_button.SetBitmap(wx.Bitmap("icons\\play.png", wx.BITMAP_TYPE_ANY))
-                self._play = False
-            else:
-                self.play_button.SetBitmap(wx.Bitmap("icons\\pause.png", wx.BITMAP_TYPE_ANY))
-                self._play = True
+            play_bmp = {False: "icons\\play.png", True: "icons\\pause.png"}
+            self.play_button.SetBitmap(wx.Bitmap(play_bmp[self.state["playing"]], wx.BITMAP_TYPE_ANY))
+            self.state["playing"] = not self.state["playing"]
         if event.Id == ID_REPEAT:
-            if self._repeat:
-                self.repeat_button.SetBitmap(wx.Bitmap("icons\\repeat.png", wx.BITMAP_TYPE_ANY))
-                self._repeat = False
-            else:
-                self.repeat_button.SetBitmap(wx.Bitmap("icons\\repeat.false.png", wx.BITMAP_TYPE_ANY))
-                self._repeat = True
-        # </test>
-
+            repeat_bmp = {False: "icons\\repeat.png", True: "icons\\repeat.false.png"}
+            self.repeat_button.SetBitmap(wx.Bitmap(repeat_bmp[self.state["repeat"]], wx.BITMAP_TYPE_ANY))
+            self.state["repeat"] = not self.state["repeat"]
 
 
 #####################################################################

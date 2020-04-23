@@ -6,7 +6,9 @@ def to_number(x, y=None):
     try:
         x = int(x)
     except ValueError:
-        return to_number(y)
+        return to_number(y) if y else y
+    except TypeError:
+        return to_number(y) if y else y
     return x
 
 
