@@ -1,4 +1,7 @@
 import wx
+from websocket import frame_buffer
+
+from engine import VideoFeed
 
 ID_OPEN = 10000
 ID_SAVEAS = 10001
@@ -15,13 +18,10 @@ ID_SLIDER = 11002
 #####################################################################
 class MainFrame(wx.Frame):
     def __init__(self, *args, **kwds):
-        self.state = {
-            "play": False,
-            "repeat": True,
-            "feed": None,
-            "playing": False,
-            "changed": False
-        }
+        self.playing = False
+        self.repeat = False
+        self.changed = False
+        self.feed: VideoFeed = None
 
         kwds["style"] = kwds.get("style", 0) | wx.DEFAULT_FRAME_STYLE
         wx.Frame.__init__(self, *args, **kwds)
@@ -68,11 +68,20 @@ class MainFrame(wx.Frame):
 
         self.__set_properties()
         self.__do_layout()
-        self.__update()
+        self.__update_ui()
+        self.SetBackgroundColour('White')
 
         # Set events
         self.Bind(wx.EVT_TOOL, self.onToolbarClick, id=wx.ID_ANY)
         self.Bind(wx.EVT_BUTTON, self.onButtonClick, id=wx.ID_ANY)
+        self.Bind(wx.EVT_CLOSE, self.onClose, id=wx.ID_ANY)
+
+        # Set timer, slider and custom paint bindings
+        self.timer = wx.Timer(self)
+        self.Bind(wx.EVT_TIMER, self.onUpdate, self.timer)
+        self.Bind(wx.EVT_SCROLL, self.onScrool, id=ID_SLIDER)
+        self.video_frame.Bind(wx.EVT_ERASE_BACKGROUND, self.onEraseBackground)
+        self.video_frame.Bind(wx.EVT_PAINT, self.onPaint)
 
     def __set_properties(self):
         self.SetTitle(r"PyVideo")
@@ -94,15 +103,73 @@ class MainFrame(wx.Frame):
         self.SetSizer(sizer_1)
         self.Layout()
 
-    def __update(self):
-        feed_on = self.state["feed"] is not None
-        changed = self.state["changed"]
+    def __update_ui(self):
+        feed_on = self.feed is not None
+        changed = self.changed
         self.toolbar.EnableTool(ID_SAVEAS, changed)
         self.toolbar.EnableTool(ID_UNDO, changed)
         self.toolbar.EnableTool(ID_REDO, False)
         self.toolbar.EnableTool(ID_NEWEFFECT, feed_on)
+
+        play_bmp = {False: "icons\\play.png", True: "icons\\pause.png"}
         self.play_button.Enable(feed_on)
+        self.play_button.SetBitmap(wx.Bitmap(play_bmp[self.playing], wx.BITMAP_TYPE_ANY))
         self.slider.Enable(feed_on)
+
+        repeat_bmp = {False: "icons\\repeat.false.png", True: "icons\\repeat.png"}
+        self.repeat_button.SetBitmap(wx.Bitmap(repeat_bmp[self.repeat], wx.BITMAP_TYPE_ANY))
+        # TODO: уточнить как должна правильно отображаться кнопка повтора
+
+    def Toggle_Play(self):
+        self.playing = not self.playing
+        if self.playing:
+            self.timer.Start(self.feed.get_fps())
+        else:
+            self.timer.Stop()
+        self.__update_ui()
+
+    def onClose(self, event):
+        self.timer.Stop()
+        self.Destroy()
+
+    def onScrool(self, event):
+        pl = self.playing
+        if pl:
+            self.Toggle_Play()
+        self.feed.set_position(self.slider.Value)
+        if pl:
+            self.Toggle_Play()
+
+    def onUpdate(self, event):
+        self.Refresh()
+        pass
+
+    def onEraseBackground(self, event):
+        return
+
+    def onPaint(self, event):
+        if self.feed and self.playing:
+            fw, fh = self.video_frame.GetSize()
+
+            frame = self.feed.next_frame(fw, fh)
+            if frame is None:
+                if self.repeat:
+                    self.feed.set_position(0)
+                    frame = self.feed.next_frame(fw, fh)
+                else:
+                    self.Toggle_Play()
+                    return
+            h, w = frame.shape[:2]
+            try:
+                image = wx.BitmapFromBuffer(w, h, frame)
+            except Exception:
+                image = wx.Bitmap.FromBuffer(w, h, frame)
+
+            dc = wx.BufferedPaintDC(self.video_frame)
+            dc.DrawBitmap(image, 0, 0)
+            self.slider.Value = self.feed.get_position()
+        else:
+            self.SetBackgroundColour('White')  # TODO: разобраться с этим костылём
 
     def onToolbarClick(self, event):
         file_filters = "AVI (*.avi)|*.avi|All files (*.*)|*.*"
@@ -111,7 +178,7 @@ class MainFrame(wx.Frame):
             dialog = wx.FileDialog(None, message="Select video file...", defaultDir="",
                                    wildcard=file_filters, style=wx.FD_OPEN)
             if dialog.ShowModal() == wx.ID_OK:
-                pass  # self.load_file(dialog.GetPath())
+                self.load_file(dialog.GetPath())
         if event.Id == ID_SAVEAS:
             dialog = wx.FileDialog(None, message="Save as...", defaultDir="",
                                    wildcard=file_filters, style=wx.FD_SAVE)
@@ -123,16 +190,24 @@ class MainFrame(wx.Frame):
             pass
         if event.Id == ID_NEWEFFECT:
             pass
+        event.Skip()
 
     def onButtonClick(self, event):
         if event.Id == ID_PLAY:
-            play_bmp = {False: "icons\\play.png", True: "icons\\pause.png"}
-            self.play_button.SetBitmap(wx.Bitmap(play_bmp[self.state["playing"]], wx.BITMAP_TYPE_ANY))
-            self.state["playing"] = not self.state["playing"]
+            self.Toggle_Play()
         if event.Id == ID_REPEAT:
-            repeat_bmp = {False: "icons\\repeat.png", True: "icons\\repeat.false.png"}
-            self.repeat_button.SetBitmap(wx.Bitmap(repeat_bmp[self.state["repeat"]], wx.BITMAP_TYPE_ANY))
-            self.state["repeat"] = not self.state["repeat"]
+            self.repeat = not self.repeat
+        self.__update_ui()
+        event.Skip()
+
+    def load_file(self, name):
+        feed = VideoFeed(name, True)
+        if feed.opened():
+            self.feed = feed
+            self.slider.SetMax(feed.length())
+            self.__update_ui()
+        else:
+            del feed
 
 
 #####################################################################
