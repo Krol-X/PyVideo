@@ -17,6 +17,7 @@ class VideoFeed(object):
 
     def open(self, filename=None, resize=False):
         self.video = cv.VideoCapture(filename if filename else 0)
+
         self.resize = resize
 
     def opened(self):
