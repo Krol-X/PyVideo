@@ -1,2 +1,11 @@
-__pycache__
+# Files
+*.exe
+*.spec
 *.bak
+*.avi
+
+# Folders
+__pycache__
+build
+dist
+.idea

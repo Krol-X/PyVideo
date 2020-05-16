@@ -1,5 +1,5 @@
-import wx
-from engine import VideoFeed
+﻿import wx
+from engine import resource_path, VideoFeed
 from dialog_effects import Effects
 
 ID_OPEN = 10000
@@ -22,7 +22,7 @@ class MainFrame(wx.Frame):
         self.changed = False
         self.feed: VideoFeed = None
 
-        self.dialog = Effects(None, wx.ID_ANY, "")
+        self.effects_dlg = Effects(None, wx.ID_ANY, "")
 
         kwds["style"] = kwds.get("style", 0) | wx.DEFAULT_FRAME_STYLE
         wx.Frame.__init__(self, *args, **kwds)
@@ -32,26 +32,26 @@ class MainFrame(wx.Frame):
         self.toolbar = wx.ToolBar(self, -1, style=wx.TB_DEFAULT_STYLE | wx.TB_TEXT | wx.TB_HORZ_TEXT)
         self.SetToolBar(self.toolbar)
         self.toolbar.AddTool(ID_OPEN, r"Открыть",
-                             wx.Bitmap("icons\\open.png", wx.BITMAP_TYPE_ANY),
-                             wx.Bitmap("icons\\open.disabled.png", wx.BITMAP_TYPE_ANY),
+                             wx.Bitmap(resource_path("icons/open.png"), wx.BITMAP_TYPE_ANY),
+                             wx.Bitmap(resource_path("icons/open.disabled.png"), wx.BITMAP_TYPE_ANY),
                              wx.ITEM_NORMAL, r"Открыть видео...", "")
         self.toolbar.AddTool(ID_SAVEAS, r"Сохранить как",
-                             wx.Bitmap("icons\\save.png", wx.BITMAP_TYPE_ANY),
-                             wx.Bitmap("icons\\save.disabled.png", wx.BITMAP_TYPE_ANY),
+                             wx.Bitmap(resource_path("icons/save.png"), wx.BITMAP_TYPE_ANY),
+                             wx.Bitmap(resource_path("icons/save.disabled.png"), wx.BITMAP_TYPE_ANY),
                              wx.ITEM_NORMAL, r"Сохранить видео как...", "")
         self.toolbar.AddSeparator()
         self.toolbar.AddTool(ID_UNDO, r"Отменить",
-                             wx.Bitmap("icons\\undo.png", wx.BITMAP_TYPE_ANY),
-                             wx.Bitmap("icons\\undo.disabled.png", wx.BITMAP_TYPE_ANY),
+                             wx.Bitmap(resource_path("icons/undo.png"), wx.BITMAP_TYPE_ANY),
+                             wx.Bitmap(resource_path("icons/undo.disabled.png"), wx.BITMAP_TYPE_ANY),
                              wx.ITEM_NORMAL, r"Отменить", "")
         self.toolbar.AddTool(ID_REDO, r"Повторить",
-                             wx.Bitmap("icons\\redo.png", wx.BITMAP_TYPE_ANY),
-                             wx.Bitmap("icons\\redo.disabled.png", wx.BITMAP_TYPE_ANY),
+                             wx.Bitmap(resource_path("icons/redo.png"), wx.BITMAP_TYPE_ANY),
+                             wx.Bitmap(resource_path("icons/redo.disabled.png"), wx.BITMAP_TYPE_ANY),
                              wx.ITEM_NORMAL, r"Повторить", "")
         self.toolbar.AddSeparator()
         self.toolbar.AddTool(ID_NEWEFFECT, r"Новый эффект",
-                             wx.Bitmap("icons\\effect.png", wx.BITMAP_TYPE_ANY),
-                             wx.Bitmap("icons\\effect.disabled.png", wx.BITMAP_TYPE_ANY),
+                             wx.Bitmap(resource_path("icons/effect.png"), wx.BITMAP_TYPE_ANY),
+                             wx.Bitmap(resource_path("icons/effect.disabled.png"), wx.BITMAP_TYPE_ANY),
                              wx.ITEM_NORMAL, r"Новый эффект", "")
         # </toolbar>
 
@@ -60,10 +60,10 @@ class MainFrame(wx.Frame):
         # <panel>
         self.panel = wx.Panel(self, wx.ID_ANY, style=wx.BORDER_STATIC)
         self.play_button = wx.BitmapButton(self.panel, ID_PLAY,
-                                           wx.Bitmap("icons\\play.png", wx.BITMAP_TYPE_ANY))
-        self.play_button.SetBitmapDisabled(wx.Bitmap("icons\\play.disabled.png", wx.BITMAP_TYPE_ANY))
+                                           wx.Bitmap(resource_path("icons/play.png"), wx.BITMAP_TYPE_ANY))
+        self.play_button.SetBitmapDisabled(wx.Bitmap(resource_path("icons/play.disabled.png"), wx.BITMAP_TYPE_ANY))
         self.repeat_button = wx.BitmapButton(self.panel, ID_REPEAT,
-                                             wx.Bitmap("icons\\repeat.png", wx.BITMAP_TYPE_ANY))
+                                             wx.Bitmap(resource_path("icons/repeat.png"), wx.BITMAP_TYPE_ANY))
         self.slider = wx.Slider(self.panel, ID_SLIDER, 0, 0, 10)
         # </panel>
 
@@ -107,20 +107,21 @@ class MainFrame(wx.Frame):
 
     def __update_ui(self):
         feed_on = self.feed is not None
-        changed = self.changed
+        changed = feed_on and self.feed.effect[0] != 0
         self.toolbar.EnableTool(ID_SAVEAS, changed)
         self.toolbar.EnableTool(ID_UNDO, changed)
         self.toolbar.EnableTool(ID_REDO, False)
         self.toolbar.EnableTool(ID_NEWEFFECT, feed_on)
 
-        play_bmp = {False: "icons\\play.png", True: "icons\\pause.png"}
+        play_bmp = {False: resource_path("icons/play.png"), True: resource_path("icons/pause.png")}
         self.play_button.Enable(feed_on)
         self.play_button.SetBitmap(wx.Bitmap(play_bmp[self.playing], wx.BITMAP_TYPE_ANY))
         self.slider.Enable(feed_on)
 
-        repeat_bmp = {False: "icons\\repeat.false.png", True: "icons\\repeat.png"}
+        repeat_bmp = {False: resource_path("icons/repeat.false.png"), True: resource_path("icons/repeat.png")}
         self.repeat_button.SetBitmap(wx.Bitmap(repeat_bmp[self.repeat], wx.BITMAP_TYPE_ANY))
         # TODO: уточнить как должна правильно отображаться кнопка повтора
+
 
     def Toggle_Play(self):
         self.playing = not self.playing
@@ -130,10 +131,11 @@ class MainFrame(wx.Frame):
             self.timer.Stop()
         self.__update_ui()
 
+
     def onClose(self, event):
         self.timer.Stop()
+        self.effects_dlg.Destroy()
         self.Destroy()
-
 
     def onScrool(self, event):
         pl = self.playing
@@ -145,7 +147,7 @@ class MainFrame(wx.Frame):
 
     def onUpdate(self, event):
         self.Refresh()
-        pass
+        event.Skip()
 
     def onEraseBackground(self, event):
         return
@@ -173,6 +175,7 @@ class MainFrame(wx.Frame):
             self.slider.Value = self.feed.get_position()
         else:
             self.SetBackgroundColour('White')  # TODO: разобраться с этим костылём
+        event.Skip()
 
     def onToolbarClick(self, event):
         open_wildcard = "AVI (*.avi)|*.avi|All files (*.*)|*.*"
@@ -187,14 +190,23 @@ class MainFrame(wx.Frame):
             dialog = wx.FileDialog(None, message="Сохранить как...", defaultDir="",
                                    wildcard=save_wildcard, style=wx.FD_SAVE)
             if dialog.ShowModal() == wx.ID_OK:
-                self.save_file(dialog.GetPath())
+                self.feed.saveto(dialog.GetPath())
         if event.Id == ID_UNDO:
             pass
         if event.Id == ID_REDO:
             pass
         if event.Id == ID_NEWEFFECT:
-            self.dialog.Centre()
-            self.dialog.ShowModal()
+            self.effects_dlg.Centre()
+            self.effects_dlg.ShowModal()
+            if self.effects_dlg.Result:
+                dlg = self.effects_dlg
+                self.feed.effect = [
+                    dlg.list_box_1.GetSelection(),
+                    dlg.spin_1.GetValue(),
+                    dlg.spin_2.GetValue(),
+                    dlg.spin_3.GetValue()
+                ]
+                self.__update_ui()
         event.Skip()
 
     def onButtonClick(self, event):
@@ -205,6 +217,7 @@ class MainFrame(wx.Frame):
         self.__update_ui()
         event.Skip()
 
+
     def load_file(self, name):
         feed = VideoFeed(name, True)
         if feed.opened():
@@ -213,6 +226,3 @@ class MainFrame(wx.Frame):
             self.__update_ui()
         else:
             del feed
-
-    def save_file(self, name):
-        pass

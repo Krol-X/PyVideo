@@ -19,3 +19,4 @@ class MainApp(wx.App):
 if __name__ == "__main__":
     app = MainApp(0)
     app.MainLoop()
+    pass
